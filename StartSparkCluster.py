@@ -4,6 +4,8 @@ import socket
 import subprocess
 import os
 import stat
+import time
+
 csv_rows=[]
 
 def CSVwrite(filename,csvarray,fieldnames,ioflag,indexrow):
@@ -65,6 +67,14 @@ def createHostsfile():
         f.write(host)
     f.close()
 
+# /home/ubuntu/install_files/hadoop-2.7.7/etc/hadoop/slaves
+def createSlavesfile():
+    f = open("slaves", "w")
+    for row in csv_rows:
+        slave = row['NodeName']+"\n"
+        f.write(slave)
+    f.close()
+
 def createHostnamefile(row):
     filename = 'hostname'
     if os.path.exists(filename):
@@ -90,9 +100,37 @@ def createInitScript(row,cluster,master_dns):
         elif row['NodeName'].find("slave") != -1:
             initcmds += "$SPARK_HOME/sbin/start-slave.sh spark://"+master_dns+":7077\n"
     elif cluster == "yarn":
-        initcmds+=''
+        if row['NodeName'].find("master") != -1:
+            initcmds+='sleep 1\n'
+            #/home/ubuntu/install_files/hadoop-2.7.7/bin/hadoop namenode -format
+            initcmds += "$HADOOP_HOME/bin/hadoop namenode -format\n"
+            #/home/ubuntu/install_files/hadoop-2.7.7/sbin/start-dfs.sh
+            initcmds += "$HADOOP_HOME/sbin/start-dfs.sh\n"
+            #/home/ubuntu/install_files/hadoop-2.7.7/sbin/start-yarn.sh
+            initcmds += "$HADOOP_HOME/sbin/start-yarn.sh\n"
+        elif row['NodeName'].find("slave") != -1:
+            initcmds+='\n'
 
     f.write(initcmds)
+    f.close()
+
+def createStopScript(row,cluster):
+    filename = 'stop.sh'
+    if os.path.exists(filename):
+          os.remove(filename)
+    f = open(filename, "w")
+    # put commands into init.sh
+    # general one
+    stopcmds = "source /home/ubuntu/env.sh\n"
+    if cluster == "standalone":
+        if row['NodeName'].find("master") != -1:
+            stopcmds += "$SPARK_HOME/sbin/stop-master.sh\n"
+        elif row['NodeName'].find("slave") != -1:
+            stopcmds += "$SPARK_HOME/sbin/stop-slave.sh\n"
+    elif cluster == "yarn":
+        stopcmds+=''
+
+    f.write(stopcmds)
     f.close()
 
 def Ops_SCP(dst,filename):
@@ -134,7 +172,7 @@ def Ops_generate_ssh_script(row):
     else:
         intel_proxy_cmd = ''
     if row['NodeName'] == "master":
-        port_tunnel = "-L 8888:localhost:8888 -L 8080:localhost:8080"
+        port_tunnel = "-L 8888:localhost:8888 -L 8080:localhost:8080 -L 8088:localhost:8088"
     else:
         port_tunnel = ''
 
@@ -157,6 +195,13 @@ def main(filename,cluster,csvfile):
     for row in csv_rows:
         if row['NodeName']== 'master':
             master_dns = row['DNS']
+            if cluster == "yarn":
+                # /home/ubuntu/install_files/hadoop-2.7.7/etc/hadoop/slaves
+                createSlavesfile()
+                dst ="ubuntu@"+row['DNS']+":/home/ubuntu/install_files/hadoop-2.7.7/etc/hadoop/"
+                filepath = Ops_generate_scp_script(row,dst,"slaves")
+                os.system(filepath)
+
     gnome_terminal_cmd = ["gnome-terminal"]
     for row in csv_rows:
         # SCP the config file
@@ -182,7 +227,6 @@ def main(filename,cluster,csvfile):
         filepath = Ops_generate_scp_script(row,dst,"init.sh")
         os.system(filepath)
 
-        # /home/ubuntu/install_files/hadoop-2.7.7/etc/hadoop/slaves
         # compose gnome-terminal command
         filepath = Ops_generate_ssh_script(row)
 
@@ -195,23 +239,37 @@ def main(filename,cluster,csvfile):
     print gnome_terminal_cmd
     p = subprocess.Popen(gnome_terminal_cmd)
     sts = os.waitpid(p.pid, 0)
+
+    time.sleep( 5 )
+    # stop script
+    for row in csv_rows:
+        # create stop.sh
+        createStopScript(row,cluster)
+        filepath = Ops_generate_scp_script(row,dst,"stop.sh")
+        os.system(filepath)
+        time.sleep( 1 )
+
     if os.path.isdir('./tmp')==True:
         os.system("rm -rf ./tmp")
 
 if __name__ == "__main__":
     import argparse
     csvfile = "spark_cluster.csv";
-    Need_Intel_Proxy=True
+    Need_Intel_Proxy=False
     # Instantiate the parser
     parser = argparse.ArgumentParser(description='Optional app description')
     parser.add_argument("-f", "--file", help="file name for instances",
             dest="file", default="")
     parser.add_argument("-c", "--cluster", help="cluster mode. standalone, yarn",
             dest="cluster", default="standalone")
+    parser.add_argument("-p", "--proxy", help="proxy type",
+            dest="proxy", default="")
     # Required positional argument
 
     args = parser.parse_args()
     if args.file == '':
         parser.print_help()
         exit()
+    if args.proxy == 'intel':
+        Need_Intel_Proxy=True
     main(args.file,args.cluster,csvfile)
