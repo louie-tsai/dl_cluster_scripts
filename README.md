@@ -35,9 +35,15 @@ By selecting the related AWS instances, users can get the lists from "Descriptio
 
 Users need to copy the contents of the "Description" tab into a file like "instances.txt", so this file contains the DNS list of AWS instances. 
 
-Here is an example of the instances.txt .
+Here is an example of the instances.txt.
 
 ![Selection_269](./images/Selection_269.png)
+
+
+### general usage
+
+This python script uses instances.txt as the input to configure the cluster automatically.
+
 
 
 
