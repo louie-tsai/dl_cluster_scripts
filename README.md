@@ -8,7 +8,7 @@ Two cluster modes such as standalone and yarn are supported.
 
 ## Installation
 
-1. git clone https://gitlab.devtools.intel.com/ltsai1/bigdl_cluster_scripts.git
+`git clone https://gitlab.devtools.intel.com/ltsai1/bigdl_cluster_scripts.git`
 
 ## How to Use
 
@@ -46,7 +46,25 @@ This python script uses instances.txt as the input to configure the cluster auto
 Users can also select different cluster mode. The supported cluster modes are standalone and yarn mode.
 For users under Intel internal network, the script also provides Intel proxy support.
 
+| Option       | inputs                            | Description                                                  |
+| ------------ | --------------------------------- | ------------------------------------------------------------ |
+| -f, --file   | instances.txt , spark_cluster.csv | input file for AWS instances information. It can be raw input from AWS webpage like instances.txt or the generated spark_cluster.csv. the spark_cluster.csv is generated after the first run. |
+| -c,--cluster | standalone, yarn                  | standalone mode from Spark or Yarn from Apache hadoop.       |
+| -p, --proxy  | intel                             | support Intel internal network by using intel proxy          |
 
+Example :
+
+1. use saved instances list on spark standalone cluster mode under Intel network
+
+   `python StartSparkCluster.py -f instances.txt -c standalone -p intel`
+
+2. used generated csv file on spark yarn cluster mode
+
+   `python StartSparkCluster -f spark_cluster.csv`
+
+
+
+The script will configure the AWS instances into a spark cluster, and open the terminal with a ssh connection for each instance.
 
 
 ![Selection_272](./images/Selection_272.png)
@@ -57,13 +75,17 @@ For users under Intel internal network, the script also provides Intel proxy sup
 
 ### Spark Standalone Cluster
 
+`python StartSparkCluster -c standalone -f ...`
 
+After auto-configuration, users can open a browser with http://MASTER_IP:8080.
+
+users should be able to see the below webpage, and it shows all the worker nodes accordingly.
 
 ![Selection_273](./images/Selection_273.png)
 
 
 
-
+Once users launch a spark job, they should be able to see the running application information on the webpage.
 
 ![Selection_276](./images/Selection_276.png)
 
@@ -73,8 +95,10 @@ For users under Intel internal network, the script also provides Intel proxy sup
 
 ### Spark Yarn Cluster
 
+`python StartSparkCluster -c yarn -f ...`
 
+After auto-configuration, users can open a browser with http://MASTER_IP:8088.
 
-
+users should be able to see the below webpage, and it shows all the worker nodes accordingly.
 
 ![Selection_290](./images/Selection_290.png)
