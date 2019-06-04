@@ -29,7 +29,7 @@ After AWS instances are launched, users need to get the IP or DNS list of those 
 
 By selecting the related AWS instances, users can get the lists from "Description" Tab like below diagram.
 
-![Selection_267](./images//Selection_267.png_)
+![Selection_267](./images/Selection_267.png)
 
 
 
