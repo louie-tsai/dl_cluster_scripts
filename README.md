@@ -43,6 +43,8 @@ Here is an example of the instances.txt.
 ### general usage
 
 This python script uses instances.txt as the input to configure the cluster automatically.
+Users can also select different cluster mode. The supported cluster modes are standalone and yarn mode.
+For users under Intel internal network, the script also provides Intel proxy support.
 
 
 
