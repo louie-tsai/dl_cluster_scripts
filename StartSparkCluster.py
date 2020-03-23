@@ -11,19 +11,18 @@ csv_rows=[]
 def CSVwrite(filename,csvarray,fieldnames,ioflag,indexrow):
     ret=False
     try:
-	import csv
-	csvfile = open(filename,ioflag)
-	csvwriter = csv.DictWriter(csvfile, delimiter=',', fieldnames=fieldnames)
-	if indexrow==True:
-	    csvwriter.writerow(dict((fn,fn) for fn in fieldnames))
-	for row in csvarray:
-            #print row
-    	    csvwriter.writerow(row)
-	csvfile.close()
-	ret=True
+        import csv
+        csvfile = open(filename,ioflag)
+        csvwriter = csv.DictWriter(csvfile, delimiter=',', fieldnames=fieldnames)
+        if indexrow==True:
+            csvwriter.writerow(dict((fn,fn) for fn in fieldnames))
+        for row in csvarray:
+            csvwriter.writerow(row)
+        csvfile.close()
+        ret=True
     except:
-	print 'CSVwrite except'
-	pass
+        print 'CSVwrite except'
+        pass
     return ret
 
 def createHostsfile():
@@ -102,9 +101,9 @@ def createStopScript(row,cluster):
     f.write(stopcmds)
     f.close()
 
-def Ops_SCP(dst,filename):
-    noproxy_cmd = ["scp", "-i","ai_tce.pem",filename, dst]
-    proxy_cmd = ["scp","-o", "ProxyCommand='nc -x proxy-us.intel.com:1080 %h %p'" ,"-i","ai_tce.pem",filename, dst]
+def Ops_SCP(dst,filename,aws_key):
+    noproxy_cmd = ["scp", "-i",aws_key,filename, dst]
+    proxy_cmd = ["scp","-o", "ProxyCommand='nc -x proxy-us.intel.com:1080 %h %p'" ,"-i",aws_key,filename, dst]
     #print proxy_cmd
     if Need_Intel_Proxy==True:
         cmd = proxy_cmd
@@ -114,7 +113,7 @@ def Ops_SCP(dst,filename):
     p = subprocess.Popen(cmd)
     sts = os.waitpid(p.pid, 0)
 
-def Ops_generate_scp_script(dst,filename,action):
+def Ops_generate_scp_script(dst,filename,action,aws_key):
     if os.path.isfile("./tmp/scp.sh"):
           os.remove("./tmp/scp.sh")
     if Need_Intel_Proxy==True:
@@ -126,9 +125,9 @@ def Ops_generate_scp_script(dst,filename,action):
     if os.path.isdir('./tmp')==False:
         os.mkdir("./tmp")
     if action == 'push':
-        scp_cmd ="scp "+intel_proxy_cmd+" "+"  -i ../ai_tce.pem "+filename+" "+dst
+        scp_cmd ="scp "+intel_proxy_cmd+" "+"  -i "+aws_key+" "+filename+" "+dst
     elif action == "pull":
-        scp_cmd ="scp "+intel_proxy_cmd+" "+"  -i ../ai_tce.pem "+dst+"  "+filename
+        scp_cmd ="scp "+intel_proxy_cmd+" "+"  -i "+aws_key+" "+dst+"  "+filename
     filepath = "./tmp/scp.sh"
     f = open(filepath, "w")
     f.write(scp_cmd)
@@ -136,7 +135,7 @@ def Ops_generate_scp_script(dst,filename,action):
     os.chmod(filepath, stat.S_IRUSR |stat.S_IEXEC |stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH )
     return filepath
 
-def Ops_generate_ssh_script(row,cluster):
+def Ops_generate_ssh_script(row,cluster,aws_key):
     # ssh -o ProxyCommand='nc -x proxy-us.intel.com:1080 %h %p' -L 8888:localhost:8888 -L 8080:localhost:8080  -i "ai_tce.pem" ubuntu@$1
     if Need_Intel_Proxy==True:
         intel_proxy_cmd = "-o ProxyCommand='nc -x proxy-us.intel.com:1080 %h %p'"
@@ -153,7 +152,7 @@ def Ops_generate_ssh_script(row,cluster):
     # Create connect scripts
     if os.path.isdir('./tmp')==False:
         os.mkdir("./tmp")
-    ssh_cmd ="ssh "+intel_proxy_cmd+" "+port_tunnel+" "+"  -i ../ai_tce.pem "+" ubuntu@"+row['DNS']
+    ssh_cmd ="ssh "+intel_proxy_cmd+" "+port_tunnel+" "+"  -i "+aws_key+" "+" ubuntu@"+row['DNS']
     filename = row['NodeName']+".sh"
     filepath = "./tmp/"+filename
     f = open(filepath, "aw")
@@ -162,13 +161,14 @@ def Ops_generate_ssh_script(row,cluster):
     os.chmod(filepath, stat.S_IRUSR |stat.S_IEXEC |stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH )
     return filepath
 
-def getPrivateAddr(dns):
+def getPrivateAddr(dns,aws_key):
     IP='0.0.0.0'
     # get /etc/hostname
     dst = "ubuntu@"+dns+":/etc/hostname"
     filepath = "."
-    filepath = Ops_generate_scp_script(dst,filepath,"pull")
+    filepath = Ops_generate_scp_script(dst,filepath,"pull",aws_key)
     try:
+        print(filepath)
         os.system(filepath)
     except:
         print "ERROR : NO VALID DNS!"
@@ -184,7 +184,7 @@ def getPrivateAddr(dns):
 
     return IP
 
-def parseCSV(filename,csvfile):
+def parseCSV(filename,csvfile,aws_key):
     dns_list=[]
     ip_list=[]
     fieldnames = ['NodeName', 'IP','DNS','PrivateIP']
@@ -207,7 +207,7 @@ def parseCSV(filename,csvfile):
             nodename = 'master'
         else:
             nodename = 'slave'+str(index)
-        private_addr = getPrivateAddr(dns)
+        private_addr = getPrivateAddr(dns,aws_key)
         index+=1
         row={fieldnames[0]:nodename , fieldnames[1]:addr,fieldnames[2]:dns,fieldnames[3]:private_addr}
         print row
@@ -217,7 +217,7 @@ def parseCSV(filename,csvfile):
     CSVwrite(csvfile,'',fieldnames,'wb',True)
     CSVwrite(csvfile,csv_rows,fieldnames,'ab',False)
 
-def main(filename,cluster,csvfile):
+def main(filename,cluster,csvfile,aws_key):
     print 'main'
     # read from CSV file if input is csv file
     if filename == csvfile:
@@ -236,7 +236,7 @@ def main(filename,cluster,csvfile):
                         csv_rows.append(csvrow)
                     index+=1
     else:
-        parseCSV(filename,csvfile)
+        parseCSV(filename,csvfile,aws_key)
 
     createHostsfile()
     for row in csv_rows:
@@ -246,7 +246,7 @@ def main(filename,cluster,csvfile):
                 # /home/ubuntu/install_files/hadoop-2.7.7/etc/hadoop/slaves
                 createSlavesfile()
                 dst ="ubuntu@"+row['DNS']+":/home/ubuntu/install_files/hadoop-2.7.7/etc/hadoop/"
-                filepath = Ops_generate_scp_script(dst,"slaves","push")
+                filepath = Ops_generate_scp_script(dst,"slaves","push",aws_key)
                 os.system(filepath)
     gnome_terminal_cmd = ["gnome-terminal"]
     for row in csv_rows:
@@ -255,31 +255,31 @@ def main(filename,cluster,csvfile):
 
         # CSVFile
         dst = "ubuntu@"+row['DNS']+":/home/ubuntu/Scripts"
-        filepath = Ops_generate_scp_script(dst,csvfile,"push")
+        filepath = Ops_generate_scp_script(dst,csvfile,"push",aws_key)
         os.system(filepath)
 
         # /etc/hosts
         dst = "ubuntu@"+row['DNS']+":/home/ubuntu/Scripts"
-        filepath = Ops_generate_scp_script(dst,"hosts","push")
+        filepath = Ops_generate_scp_script(dst,"hosts","push",aws_key)
         os.system(filepath)
 
         # /etc/hostname
         createHostnamefile(row)
-        filepath = Ops_generate_scp_script(dst,"hostname","push")
+        filepath = Ops_generate_scp_script(dst,"hostname","push",aws_key)
         os.system(filepath)
 
         # create init.sh
         createInitScript(row,cluster,master_dns)
-        filepath = Ops_generate_scp_script(dst,"init.sh","push")
+        filepath = Ops_generate_scp_script(dst,"init.sh","push",aws_key)
         os.system(filepath)
 
         #~/.ssh/config
         dst = "ubuntu@"+row['DNS']+":/home/ubuntu/.ssh"
-        filepath = Ops_generate_scp_script(dst,"config","push")
+        filepath = Ops_generate_scp_script(dst,"config","push",aws_key)
         os.system(filepath)
 
         # compose gnome-terminal command
-        filepath = Ops_generate_ssh_script(row,cluster)
+        filepath = Ops_generate_ssh_script(row,cluster,aws_key)
 
         #gnome-terminal  --tab -e "bash -c 'ps -ef; bash'" --tab -e "bash -c 'ls;bash'" --tab -e "bash -c 'top -n 1; bash'"
         gnome_terminal_cmd.append("--tab")
@@ -297,7 +297,7 @@ def main(filename,cluster,csvfile):
     for row in csv_rows:
         # create stop.sh
         createStopScript(row,cluster)
-        filepath = Ops_generate_scp_script(dst,"stop.sh","push")
+        filepath = Ops_generate_scp_script(dst,"stop.sh","push",aws_key)
         os.system(filepath)
         time.sleep( 1 )
 
@@ -316,6 +316,8 @@ if __name__ == "__main__":
             dest="cluster", default="standalone")
     parser.add_argument("-p", "--proxy", help="proxy type",
             dest="proxy", default="")
+    parser.add_argument("-k", "--key", help="AWS key",
+            dest="aws_key", default="ai_tce_or.pem")
     # Required positional argument
 
     args = parser.parse_args()
@@ -324,4 +326,5 @@ if __name__ == "__main__":
         exit()
     if args.proxy == 'intel':
         Need_Intel_Proxy=True
-    main(args.file,args.cluster,csvfile)
+    print(args.aws_key)
+    main(args.file,args.cluster,csvfile,args.aws_key)
