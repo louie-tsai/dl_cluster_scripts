@@ -43,6 +43,14 @@ def createSlavesfile():
         f.write(slave)
     f.close()
 
+# ${ALLUXIO_HOME}/conf/workers
+def createWorkersfile():
+    f = open("workers", "w")
+    for row in csv_rows:
+        slave = row['NodeName']+"\n"
+        f.write(slave)
+    f.close()
+
 def createHostnamefile(row):
     filename = 'hostname'
     if os.path.exists(filename):
@@ -78,6 +86,15 @@ def createInitScript(row,cluster,master_dns):
             initcmds += "$HADOOP_HOME/sbin/start-yarn.sh\n"
         elif row['NodeName'].find("slave") != -1:
             initcmds+='\n'
+    #Alluxio
+    if row['NodeName'].find("master") != -1:
+        initcmds += "export MASTER_NAME="+ row['DNS']+"\n"
+        initcmds += "cp ~/Scripts/workers $ALLUXIO_HOME/conf \n"
+        initcmds += "sleep 10\n"
+        initcmds += "$ALLUXIO_HOME/bin/alluxio copyDir $ALLUXIO_HOME/conf/ \n"
+        initcmds += "$ALLUXIO_HOME/bin/alluxio format \n"
+        initcmds += "$ALLUXIO_HOME/bin/alluxio-start.sh all \n"
+
 
     f.write(initcmds)
     f.close()
@@ -248,6 +265,12 @@ def main(filename,cluster,csvfile,aws_key):
                 dst ="ubuntu@"+row['DNS']+":/home/ubuntu/install_files/hadoop-2.7.7/etc/hadoop/"
                 filepath = Ops_generate_scp_script(dst,"slaves","push",aws_key)
                 os.system(filepath)
+            # Alluxio workers file
+            createWorkersfile()
+            dst ="ubuntu@"+row['DNS']+":/home/ubuntu/Scripts"
+            filepath = Ops_generate_scp_script(dst,"workers","push",aws_key)
+            os.system(filepath)
+
     gnome_terminal_cmd = ["gnome-terminal"]
     for row in csv_rows:
         # SCP the config file
